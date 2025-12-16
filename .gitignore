@@ -1,0 +1,14 @@
+# Python Venv
+venv/
+__pycache__/
+
+# Environment variables
+.env
+
+# Render/Local files
+*.sqlite
+*.db
+uploads/
+
+# Gunicorn / other logs
+*.log

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Research Gap Analyzer (Gemini)</title>
+    <style>
+        /* General Styling */
+        body { font-family: sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f4f4f9; }
+        h1 { color: #333; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+        .container { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        label { display: block; margin-top: 15px; font-weight: bold; color: #555; }
+        textarea, input[type="text"] { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        textarea { height: 120px; }
+        .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .flash.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .flash.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .csv-link { display: inline-block; margin-top: 15px; padding: 10px 15px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; }
+
+        /* Dynamic Form Styling */
+        .paper-block { border: 1px solid #e0e0e0; padding: 15px; margin-bottom: 20px; border-radius: 6px; background-color: #fafafa; }
+        .paper-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .paper-header h3 { margin: 0; color: #007bff; }
+        .remove-btn, .add-btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .remove-btn { background-color: #dc3545; color: white; font-size: 0.9em; }
+        .add-btn { background-color: #28a745; color: white; margin-top: 20px; }
+        input[type="submit"] { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-top: 20px; font-size: 16px; }
+        input[type="submit"]:hover { background-color: #0056b3; }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Research Gap Analyzer (Gemini 2.5 Flash)</h1>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="/" enctype="multipart/form-data">
+            
+            <h2>1. Data Setup (Upload or Start New)</h2>
+            <p>Upload your previous CSV to continue updating it.</p>
+            <label for="csv_file">Upload Existing Research CSV (Optional):</label>
+            <input type="file" name="csv_file" accept=".csv">
+
+            <h2>2. Define AI Extraction Structure</h2>
+            <label for="system_prompt">AI System Prompt / Output Structure Definition:</label>
+            <textarea name="system_prompt" id="system_prompt" required>
+You are a highly efficient academic research assistant. Analyze the user's provided research text and extract key information. You MUST respond ONLY with a single JSON object. The JSON object must strictly adhere to the following keys. Do not add any introductory text outside the JSON:
+
+KEYS REQUIRED:
+- Title_Source: (The primary title or identifier of the paper)
+- Main_Gap_Identified: (The primary research gap this paper addresses or mentions)
+- Key_Takeaways: (Brief summary of findings)
+- Next_Steps_Suggested: (Future work suggested by the authors)
+            </textarea>
+            <p style="font-size: 0.8em; color: gray;">Note: The key 'Paper_Link' is added automatically by the script.</p>
+
+            <h2>3. Input Papers for Analysis</h2>
+            
+            <!-- Dynamic Paper Inputs Container -->
+            <div id="papers-container">
+                <!-- Template for a single paper block -->
+                <div class="paper-block" data-paper-id="1">
+                    <div class="paper-header">
+                        <h3>Paper #1</h3>
+                        <button type="button" class="remove-btn" onclick="removePaper(1)">Remove</button>
+                    </div>
+                    <label>Paper Identifier (e.g., Smith 2024, or Title):</label>
+                    <input type="text" name="identifier_1" required>
+                    
+                    <label>Research Paper Link (Full URL):</label>
+                    <input type="text" name="link_1">
+                    
+                    <label>Abstract / Introduction Text:</label>
+                    <textarea name="text_1" required></textarea>
+                </div>
+            </div>
+
+            <button type="button" class="add-btn" onclick="addPaper()">Add Another Paper</button>
+
+            <input type="submit" value="Analyze Papers and Update CSV">
+        </form>
+
+        {% if csv_exists %}
+            <a href="/download" class="csv-link">Download Current research_gaps_summary.csv ({{ csv_size }} KB)</a>
+        {% endif %}
+
+    </div>
+
+    <script>
+        let paperCount = 1;
+        
+        function updatePaperLabels() {
+            const blocks = document.querySelectorAll('.paper-block');
+            blocks.forEach((block, index) => {
+                const id = index + 1;
+                block.querySelector('.paper-header h3').textContent = `Paper #${id}`;
+                block.querySelector('.remove-btn').setAttribute('onclick', `removePaper(${block.dataset.paperId})`);
+            });
+        }
+        
+        function addPaper() {
+            paperCount++;
+            const container = document.getElementById('papers-container');
+            
+            // Get the template structure
+            const template = document.querySelector('.paper-block').cloneNode(true);
+            
+            // Update the data-id and input names for uniqueness
+            template.setAttribute('data-paper-id', paperCount);
+            
+            const inputs = template.querySelectorAll('input, textarea');
+            inputs.forEach(input => {
+                const baseName = input.name.split('_')[0];
+                input.name = `${baseName}_${paperCount}`;
+                input.value = ''; // Clear previous values
+            });
+            
+            // Set up the remove button function
+            const removeBtn = template.querySelector('.remove-btn');
+            removeBtn.setAttribute('onclick', `removePaper(${paperCount})`);
+            removeBtn.style.display = 'block'; // Ensure remove button is visible
+            
+            container.appendChild(template);
+            updatePaperLabels();
+        }
+
+        function removePaper(id) {
+            const blockToRemove = document.querySelector(`.paper-block[data-paper-id="${id}"]`);
+            if (blockToRemove) {
+                blockToRemove.remove();
+            }
+            // If only one paper remains, hide the remove button
+            if (document.querySelectorAll('.paper-block').length === 1) {
+                document.querySelector('.paper-block .remove-btn').style.display = 'none';
+            }
+            updatePaperLabels();
+        }
+        
+        // Initial setup: Hide remove button if only one paper exists
+        document.addEventListener('DOMContentLoaded', () => {
+            if (document.querySelectorAll('.paper-block').length === 1) {
+                document.querySelector('.paper-block .remove-btn').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
