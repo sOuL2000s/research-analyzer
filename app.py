@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 load_dotenv() 
 
 CSV_FILE = "research_gaps_summary.csv"
-MODEL_NAME = "gemini-2.5-flash" 
+MODEL_NAME = "gemini-2.5-flash-preview-09-2025" 
 UPLOAD_FOLDER = 'uploads' 
 
 app = Flask(__name__)
